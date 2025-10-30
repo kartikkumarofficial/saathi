@@ -1,68 +1,55 @@
-class AppUser {
+class UserModel {
   final String id;
-  final String fullName;
+  final String name;
   final String email;
-  final String role; // caregiver or receiver
-  final DateTime createdAt;
-  final String? linkedUserId; // ✅ New field
+  final String? avatarUrl;
+  final String? role;
 
-  AppUser({
+  UserModel({
     required this.id,
-    required this.fullName,
+    required this.name,
     required this.email,
-    required this.role,
-    required this.createdAt,
-    this.linkedUserId, // ✅ Optional because not all users will have this
+    this.avatarUrl,
+    this.role,
   });
 
-  factory AppUser.fromJson(Map<String, dynamic> json) {
-    return AppUser(
-      id: json['id'],
-      fullName: json['full_name'],
-      email: json['email'],
-      role: json['role'],
-      createdAt: DateTime.parse(json['created_at']),
-      linkedUserId: json['linked_user_id'], // ✅ Parse if available
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    // Support both naming conventions just in case (full_name vs name, profile_image vs avatar_url)
+    final nameVal = json['full_name'] ?? json['name'] ?? '';
+    final avatarVal = json['profile_image'] ?? json['avatar_url'];
+
+    return UserModel(
+      id: json['id'] as String,
+      name: nameVal as String,
+      email: json['email'] as String,
+      avatarUrl: avatarVal != null ? avatarVal as String : null,
+      role: json['role'] != null ? (json['role'] as String) : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'full_name': fullName,
+      'full_name': name,
       'email': email,
+      'profile_image': avatarUrl,
       'role': role,
-      'created_at': createdAt.toIso8601String(),
-      if (linkedUserId != null) 'linked_user_id': linkedUserId, // ✅ Optional in JSON
     };
   }
-}
 
-
-class UserModel {
-  final String id;
-  final String? fullName;
-  final String? email;
-  final String? role;
-  final String? linkedUserId;
-
-  UserModel({
-    required this.id,
-    this.fullName,
-    this.email,
-    this.role,
-    this.linkedUserId,
-  });
-
-  // Factory constructor to create a UserModel from a JSON map (from Supabase)
-  factory UserModel.fromJson(Map<String, dynamic> json) {
+  UserModel copyWith({
+    String? id,
+    String? name,
+    String? email,
+    String? avatarUrl,
+    String? role,
+  }) {
     return UserModel(
-      id: json['id'],
-      fullName: json['full_name'],
-      email: json['email'],
-      role: json['role'],
-      linkedUserId: json['linked_user_id'],
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      role: role ?? this.role,
     );
   }
 }
-

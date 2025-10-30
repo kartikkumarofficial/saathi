@@ -55,7 +55,7 @@
 
                 // Screen Title
                 Text(
-                  "Join SafeSight",
+                  "Join Saathi",
                   style: GoogleFonts.nunito(
                     fontSize: w * 0.08,
                     fontWeight: FontWeight.w800,

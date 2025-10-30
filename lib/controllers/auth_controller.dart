@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/models/user_model.dart';
 import '../presentation/screens/auth/login_screen.dart';
-import '../presentation/screens/homescreen.dart';
 import '../presentation/screens/main_scaffold.dart';
+import '../presentation/screens/role_selection_screen.dart';
 
 class AuthController extends GetxController {
   final SupabaseClient supabase = Supabase.instance.client;
@@ -36,7 +35,9 @@ class AuthController extends GetxController {
     isPasswordVisible.value = !isPasswordVisible.value;
   }
 
-  /// -------------------- SIGN UP --------------------
+  // --------------------------------------------------------
+  // SIGN UP
+  // --------------------------------------------------------
   Future<void> signUp() async {
     isLoading.value = true;
     try {
@@ -53,6 +54,7 @@ class AuthController extends GetxController {
         'id': response.user!.id,
         'email': emailController.text.trim(),
         'full_name': nameController.text.trim(),
+        'role': 'wanderer', // default until user picks one
         'profile_image':
         'https://api.dicebear.com/6.x/pixel-art/png?seed=${emailController.text.trim()}',
       });
@@ -62,7 +64,8 @@ class AuthController extends GetxController {
       passwordController.clear();
       confirmPasswordController.clear();
 
-      Get.offAll(() => HomePage());
+      // go to role selection after signup
+      Get.offAll(() => RoleSelectionScreen());
     } catch (e) {
       Get.snackbar(
         'Error',
@@ -76,7 +79,9 @@ class AuthController extends GetxController {
     }
   }
 
-  /// -------------------- LOGIN --------------------
+  // --------------------------------------------------------
+  // LOGIN
+  // --------------------------------------------------------
   Future<void> logIn() async {
     isLoading.value = true;
     try {
@@ -104,24 +109,60 @@ class AuthController extends GetxController {
     }
   }
 
-  /// -------------------- FETCH USER --------------------
+
+
+  // --------------------------------------------------------
+  // UPDATE ROLE
+  // --------------------------------------------------------
+  Future<void> updateUserRole(String role) async {
+    try {
+      final uid = supabase.auth.currentUser?.id;
+      if (uid == null) throw "User not logged in";
+
+      // Update on server first
+      final res = await supabase.from('users').update({'role': role}).eq('id', uid);
+
+      // Optionally check res for errors; Supabase client usually throws on error
+      // Now update local reactive user immutably using copyWith
+      final current = user.value;
+      if (current != null) {
+        user.value = current.copyWith(role: role);
+      } else {
+        // If local 'user' not loaded, fetch from Supabase and set
+        final fresh = await getUserFromSupabase(uid);
+        if (fresh != null) {
+          user.value = fresh.copyWith(role: role);
+        }
+      }
+      user.refresh();
+
+      print("✅ Role updated successfully: $role");
+    } catch (e) {
+      print("❌ Error updating role: $e");
+      rethrow;
+    }
+  }
+
+
+
+  // --------------------------------------------------------
+  // FETCH USER
+  // --------------------------------------------------------
   Future<void> fetchUserAndNavigate(String userId) async {
     try {
-      print('[DEBUG] Fetching user data for ID: $userId');
-
-      final response = await supabase
-          .from('users')
-          .select()
-          .eq('id', userId)
-          .single();
-
-      print('[DEBUG] Supabase response: $response');
+      final Map<String, dynamic> response =
+      await supabase.from('users').select().eq('id', userId).single() as Map<String, dynamic>;
 
       user.value = UserModel.fromJson(response);
+      user.refresh();
 
-      Get.offAll(() => MainScaffold());
+      // Navigate based on role
+      if (user.value!.role == null || user.value!.role!.isEmpty) {
+        Get.offAll(() => RoleSelectionScreen());
+      } else {
+        Get.offAll(() => MainScaffold());
+      }
     } catch (e) {
-      print('[ERROR] fetchUserAndNavigate failed: $e');
       Get.snackbar(
         'Error',
         'Could not retrieve user details. Please try again.',
@@ -133,7 +174,21 @@ class AuthController extends GetxController {
     }
   }
 
-  /// -------------------- GOOGLE SIGN IN --------------------
+  Future<UserModel?> getUserFromSupabase(String id) async {
+    try {
+      final Map<String, dynamic> response =
+      await supabase.from('users').select().eq('id', id).single() as Map<String, dynamic>;
+      return UserModel.fromJson(response);
+    } catch (e) {
+      print('[ERROR] getUserFromSupabase: $e');
+      return null;
+    }
+  }
+
+
+  // --------------------------------------------------------
+  // GOOGLE SIGN-IN
+  // --------------------------------------------------------
   Future<void> signInWithGoogle() async {
     try {
       await supabase.auth.signInWithOAuth(
@@ -144,15 +199,13 @@ class AuthController extends GetxController {
       supabase.auth.onAuthStateChange.listen((data) async {
         final session = data.session;
         if (session != null) {
-          print("✅ Google sign-in success: ${session.user.id}");
           await insertUserIfNew(session.user);
           await fetchUserAndNavigate(session.user.id);
         }
       });
     } catch (e) {
-      print('❌ Error signing in: $e');
       Get.snackbar(
-        'Error',
+        'Error signing in',
         e.toString(),
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
@@ -161,34 +214,34 @@ class AuthController extends GetxController {
     }
   }
 
-  /// -------------------- INSERT USER IF NEW --------------------
+  // --------------------------------------------------------
+  // INSERT USER IF NEW
+  // --------------------------------------------------------
   Future<void> insertUserIfNew(User user) async {
-    final existing = await supabase
-        .from('users')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
+    final existing =
+    await supabase.from('users').select().eq('id', user.id).maybeSingle();
 
     if (existing == null) {
       await supabase.from('users').insert({
         'id': user.id,
         'email': user.email,
         'full_name': user.userMetadata?['full_name'] ?? 'Anonymous',
+        'role': 'wanderer',
         'profile_image': user.userMetadata?['avatar_url'] ??
             'https://api.dicebear.com/6.x/pixel-art/png?seed=${user.email}',
       });
     }
   }
 
-  /// -------------------- LOGOUT --------------------
+  // --------------------------------------------------------
+  // LOGOUT
+  // --------------------------------------------------------
   Future<void> logOut() async {
     try {
       isLoading.value = true;
       await supabase.auth.signOut();
-      print('✅ User signed out successfully');
       Get.offAll(() => const LoginScreen());
     } catch (e) {
-      print('❌ Error signing out: $e');
       Get.snackbar(
         'Logout Failed',
         e.toString().replaceAll('Exception: ', ''),
