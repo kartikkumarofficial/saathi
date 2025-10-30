@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:saathi/presentation/screens/homescreen.dart';
+import 'package:saathi/presentation/screens/wanderer_dashboard.dart';
 import '../../controllers/nav_controller.dart';
 import '../../controllers/auth_controller.dart';
 
@@ -26,11 +27,11 @@ class MainScaffold extends StatelessWidget {
 
     /// Different screen sets depending on role
     final List<Widget> wandererScreens = [
+      WandererDashboard(),
       HomePage(),
       HomePage(),
       HomePage(),
-      HomePage(),
-      // const WandererHomeScreen(),
+
       // const BookingsScreen(),
       // const ChatScreen(),
       // const ProfileScreen(),
