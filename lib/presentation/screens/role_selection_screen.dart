@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:saathi/presentation/screens/main_scaffold.dart';
 import '../../../controllers/auth_controller.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/role_card.dart';
@@ -107,7 +108,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                 try {
                   // Update role in Supabase users table
                   await authController.updateUserRole(selectedRole!);
-                  Get.to(() => const LoginScreen());
+                  Get.to(() => MainScaffold());
                 } catch (e) {
                   Get.snackbar(
                     "Error",
