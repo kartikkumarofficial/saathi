@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:saathi/presentation/screens/walk_session_screen.dart';
 import '../../../controllers/walker_controller.dart';
+
 
 class WalkerDashboardScreen extends StatefulWidget {
   const WalkerDashboardScreen({super.key});
@@ -16,6 +19,10 @@ class _WalkerDashboardScreenState extends State<WalkerDashboardScreen> {
   LatLng? currentLocation;
   GoogleMapController? mapController;
 
+  static const Color _tealGreen = Color(0xFF7AB7A7);
+  static const Color _darkText = Color(0xFF4A4E6C);
+  static const Color _lightText = Colors.black54;
+
   @override
   void initState() {
     super.initState();
@@ -24,7 +31,7 @@ class _WalkerDashboardScreenState extends State<WalkerDashboardScreen> {
 
   Future<void> _initializeDashboard() async {
     await _getCurrentLocation();
-    await walkerCtrl.fetchWalkRequests(); // 👈 ensure data loads after location
+    await walkerCtrl.fetchWalkRequests();
   }
 
   Future<void> _getCurrentLocation() async {
@@ -57,39 +64,28 @@ class _WalkerDashboardScreenState extends State<WalkerDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Walker Dashboard'),
-        backgroundColor: Colors.green.shade700,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              await walkerCtrl.fetchWalkRequests();
-            },
-          )
-        ],
-      ),
+      backgroundColor: Colors.grey[50],
       body: Column(
         children: [
-          // 🗺️ Google Map Section
+          // 🗺️ Map Section
           Container(
             height: Get.height * 0.35,
-            width: double.infinity,
             margin: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green.shade700),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)],
             ),
-            child: currentLocation == null
-                ? const Center(child: CircularProgressIndicator())
-                : ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: GoogleMap(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: currentLocation == null
+                  ? const Center(child: CircularProgressIndicator(color: _tealGreen))
+                  : GoogleMap(
                 initialCameraPosition: CameraPosition(
                   target: currentLocation!,
                   zoom: 15,
                 ),
                 myLocationEnabled: true,
+                zoomControlsEnabled: false,
                 onMapCreated: (controller) => mapController = controller,
                 markers: {
                   Marker(
@@ -102,75 +98,153 @@ class _WalkerDashboardScreenState extends State<WalkerDashboardScreen> {
             ),
           ),
 
-          // 🧾 Walk Requests Section
+          // 🧾 Walk Requests
           Expanded(
             child: Obx(() {
               if (walkerCtrl.isLoading.value) {
-                return const Center(child: CircularProgressIndicator());
+                return const Center(child: CircularProgressIndicator(color: _tealGreen));
               }
 
               if (walkerCtrl.walkRequests.isEmpty) {
-                return const Center(
+                return Center(
                   child: Text(
                     "No walk requests yet 👣",
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                    style: GoogleFonts.nunito(
+                      fontSize: 16,
+                      color: _lightText,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 );
               }
 
               return RefreshIndicator(
                 onRefresh: walkerCtrl.fetchWalkRequests,
+                color: _tealGreen,
                 child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   itemCount: walkerCtrl.walkRequests.length,
                   itemBuilder: (context, index) {
                     final req = walkerCtrl.walkRequests[index];
+                    final wandererName = req['wanderer_name'] ?? 'Unknown';
+                    final wandererImage = req['wanderer_image'];
+                    final start = req['start_location'] ?? 'N/A';
+                    final status = req['status'] ?? 'Pending';
+
                     return Card(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 3,
-                      child: ListTile(
-                        leading: const Icon(Icons.person_pin_circle,
-                            color: Colors.green),
-                        title: Text(
-                          "Request from: ${req['wanderer_name'] ?? req['wanderer_id'] ?? 'Unknown'}",
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Column(
+                      shadowColor: Colors.black12,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("Start: ${req['start_location'] ?? 'N/A'}"),
-                            Text("End: ${req['end_location'] ?? 'N/A'}"),
-                            Text("Status: ${req['status'] ?? 'Pending'}"),
-                          ],
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.check_circle,
-                                  color: Colors.green),
-                              onPressed: () async {
-                                await walkerCtrl.updateRequestStatus(
-                                    req['id'], 'accepted');
-                                Get.snackbar("Accepted ✅",
-                                    "You accepted the walk request");
-                                walkerCtrl.fetchWalkRequests();
-                              },
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 26,
+                                  backgroundImage: wandererImage != null
+                                      ? NetworkImage(wandererImage)
+                                      : const AssetImage('assets/images/default_avatar.png') as ImageProvider,
+                                  backgroundColor: Colors.grey[200],
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Request from $wandererName",
+                                        style: GoogleFonts.nunito(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w700,
+                                          color: _darkText,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "Location: $start",
+                                        style: GoogleFonts.nunito(
+                                          fontSize: 14,
+                                          color: _lightText,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              icon:
-                              const Icon(Icons.cancel, color: Colors.red),
-                              onPressed: () async {
-                                await walkerCtrl.updateRequestStatus(
-                                    req['id'], 'rejected');
-                                Get.snackbar("Rejected ❌",
-                                    "You rejected the walk request");
-                                walkerCtrl.fetchWalkRequests();
-                              },
-                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: status == 'accepted'
+                                        ? _tealGreen.withOpacity(0.15)
+                                        : status == 'rejected'
+                                        ? Colors.red.withOpacity(0.1)
+                                        : Colors.grey.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    "Status: ${status.isNotEmpty ? '${status[0].toUpperCase()}${status.substring(1)}' : ''}",
+                                    style: GoogleFonts.nunito(
+                                      color: status == 'accepted'
+                                          ? _tealGreen
+                                          : status == 'rejected'
+                                          ? Colors.red
+                                          : _darkText,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    // ✅ ACCEPT BUTTON
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _tealGreen,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      onPressed: () async {
+                                        await walkerCtrl.updateRequestStatus(req['id'], 'accepted');
+                                        Get.snackbar("Accepted ✅", "You accepted the walk request");
+
+                                        // ✅ Navigate to Session Screen
+                                        Get.to(() => WalkSessionScreen(
+                                          requestData: req,
+                                          walkRequestId: req['id'].toString(),
+                                          walkerId: req['walker_id'] ?? '',
+                                          wandererId: req['wanderer_id'] ?? '',
+                                        ));
+
+                                        walkerCtrl.walkRequests.removeAt(index);
+                                      },
+                                      child: Text("Accept", style: GoogleFonts.nunito(color: Colors.white)),
+                                    ),
+                                    const SizedBox(width: 8),
+
+                                    // ❌ REJECT BUTTON
+                                    OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: Colors.redAccent),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      onPressed: () async {
+                                        await walkerCtrl.updateRequestStatus(req['id'], 'rejected');
+                                        walkerCtrl.walkRequests.removeAt(index);
+                                        Get.snackbar("Rejected ❌", "You rejected the walk request");
+                                      },
+                                      child: Text("Reject", style: GoogleFonts.nunito(color: Colors.redAccent)),
+                                    ),
+                                  ],
+                                )
+                              ],
+                            )
                           ],
                         ),
                       ),

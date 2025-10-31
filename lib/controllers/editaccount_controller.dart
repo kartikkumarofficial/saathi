@@ -60,7 +60,7 @@ class EditAccountController extends GetxController {
       if (currentUser != null) {
         // ✅ Update Supabase 'users' table
         await supabase.from('users').update({
-          'username': name,
+          'full_name': name,
           'email': email,
           'profile_image': imageUrl,
           'about': about,

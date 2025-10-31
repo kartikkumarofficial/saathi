@@ -63,6 +63,9 @@ dependencies:
   foundation: ^0.0.5
   flutter_web_auth_2: ^4.1.0
   flutter_animate: ^4.5.2
+  get_storage: ^2.1.1
+  carousel_slider: ^5.1.1
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:

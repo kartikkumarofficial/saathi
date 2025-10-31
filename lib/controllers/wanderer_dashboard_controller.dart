@@ -1,7 +1,6 @@
-// lib/controllers/wanderer_dashboard_controller.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:saathi/controllers/schedule_walk_controller.dart';
@@ -23,7 +22,10 @@ class WandererDashboardController extends GetxController {
   final Rxn<Map<String, dynamic>> selectedWalker = Rxn<Map<String, dynamic>>();
   String? lastTappedMarkerId;
 
-  // debug helper
+  final Color primaryColor = const Color(0xFF7AB7A7);
+  final Color textPrimary = Colors.black87;
+  final Color textSecondary = Colors.black54;
+
   void debug(String msg) => debugPrint('[WDC] $msg');
 
   @override
@@ -45,7 +47,6 @@ class WandererDashboardController extends GetxController {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         debug('Location services disabled.');
-        // still continue; use fallback later
         return;
       }
 
@@ -68,8 +69,7 @@ class WandererDashboardController extends GetxController {
     }
   }
 
-  /// fetch walkers from Supabase - intentionally doesn't request a `rating` field from users
-  /// to avoid "column does not exist" errors. Rating is shown as fallback in UI.
+  /// fetch walkers from Supabase
   Future<void> fetchWalkers() async {
     try {
       debug('Fetching walkers from Supabase...');
@@ -139,7 +139,6 @@ class WandererDashboardController extends GetxController {
 
   void onMapCreated(GoogleMapController controller) {
     mapController = controller;
-    // if we have a location, animate camera there
     if (currentLatLng.value != null) {
       controller.animateCamera(CameraUpdate.newLatLngZoom(currentLatLng.value!, 14));
     }
@@ -151,7 +150,6 @@ class WandererDashboardController extends GetxController {
     debug('Marker tapped: $markerId');
 
     if (lastTappedMarkerId == markerId) {
-      // second tap -> open bottom sheet details
       showWalkerDetailsBottomSheet(walker);
       return;
     }
@@ -172,39 +170,59 @@ class WandererDashboardController extends GetxController {
   void _showMarkerInfoPopup(Map<String, dynamic> walker) {
     Get.dialog(
       Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.white,
         child: Padding(
-          padding: const EdgeInsets.all(14.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundImage: walker['profile_image'] != null
-                    ? NetworkImage(walker['profile_image'])
-                    : const AssetImage('assets/avatar.png') as ImageProvider,
+              _buildThemedAvatar(walker['profile_image'], 28),
+              const SizedBox(height: 12),
+              Text(
+                walker['full_name'] ?? 'Unknown',
+                style: GoogleFonts.nunito(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  color: textPrimary,
+                ),
               ),
               const SizedBox(height: 8),
-              Text(walker['full_name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 6),
-              Text(walker['bio'] ?? 'Available for walks', textAlign: TextAlign.center),
-              const SizedBox(height: 12),
+              Text(
+                walker['bio'] ?? 'Available for walks',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.nunito(color: textSecondary),
+              ),
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   TextButton(
-                    onPressed: () {
-                      Get.back(); // close dialog
-                    },
-                    child: const Text('Close'),
+                    onPressed: () => Get.back(),
+                    child: Text(
+                      'Close',
+                      style: GoogleFonts.nunito(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
                   ),
                   ElevatedButton(
                     onPressed: () {
                       Get.back();
                       showWalkerDetailsBottomSheet(walker);
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700),
-                    child: const Text('View profile'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(
+                      'View profile',
+                      style: GoogleFonts.nunito(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               )
@@ -217,65 +235,88 @@ class WandererDashboardController extends GetxController {
 
   /// shows a draggable bottom sheet containing full short info + actions
   void showWalkerDetailsBottomSheet(Map<String, dynamic> walker) {
-    // set selectedWalker
     selectedWalker.value = walker;
     setMarkers();
 
     Get.bottomSheet(
       DraggableScrollableSheet(
         expand: false,
-        initialChildSize: 0.36,
-        minChildSize: 0.18,
+        initialChildSize: 0.4,
+        minChildSize: 0.2,
         maxChildSize: 0.9,
         builder: (context, scrollController) {
           return Container(
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
             child: SingleChildScrollView(
               controller: scrollController,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 48,
-                      height: 5,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                  Container(
+                    width: 48,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
+                  const SizedBox(height: 20),
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 32,
-                        backgroundImage: walker['profile_image'] != null
-                            ? NetworkImage(walker['profile_image'])
-                            : const AssetImage('assets/avatar.png') as ImageProvider,
-                      ),
-                      const SizedBox(width: 12),
+                      _buildThemedAvatar(walker['profile_image'], 36),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(walker['full_name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                            Text(
+                              walker['full_name'] ?? 'Unknown',
+                              style: GoogleFonts.nunito(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 20,
+                                color: textPrimary,
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                const Icon(Icons.star, color: Colors.amber, size: 18),
+                                const Icon(Icons.star, color: Color(0xFFF9A825), size: 18),
                                 const SizedBox(width: 6),
-                                Text("${(walker['rating'] ?? '4.8')}"),
+                                Text(
+                                  "${(walker['rating'] ?? '4.8')}",
+                                  style: GoogleFonts.nunito(
+                                    fontSize: 15,
+                                    color: textSecondary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                                 const SizedBox(width: 12),
                                 if (walker['is_verified'] == true)
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
-                                    child: const Text('Verified', style: TextStyle(color: Colors.green)),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade50,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Verified',
+                                      style: GoogleFonts.nunito(
+                                        color: Colors.blue.shade700,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),
@@ -284,46 +325,34 @@ class WandererDashboardController extends GetxController {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(walker['bio'] ?? 'No bio available'),
                   const SizedBox(height: 16),
-                  ElevatedButton(
+                  Text(
+                    walker['bio'] ?? 'No bio available',
+                    style: GoogleFonts.nunito(
+                      fontSize: 15,
+                      color: textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildThemedButton(
                     onPressed: () {
                       Get.back(); // close sheet
                       Get.to(() => WalkerDetailsScreen(walker: walker), arguments: walker);
                     },
-                    style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), backgroundColor: Colors.green.shade700),
-                    child: const Text('View full profile'),
+                    label: 'View Full Profile',
+                    icon: Icons.person_search_outlined,
+                    color: primaryColor,
                   ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: () async {
-                      // open schedule dialog right from sheet
-                      DateTime? date = await showDatePicker(
-                        context: Get.context!,
-                        initialDate: DateTime.now().add(const Duration(days: 1)),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 30)),
-                      );
-                      if (date == null) return;
-                      TimeOfDay? time = await showTimePicker(context: Get.context!, initialTime: TimeOfDay.now());
-                      if (time == null) return;
-                      final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-
-
-                      // schedule via controller method
-                      await walkController.scheduleWalk(
-                        walkerId: walker['id']?.toString() ?? '',
-                        wandererId: Supabase.instance.client.auth.currentUser?.id ?? '',
-                        startTime: scheduled,
-                      );
-
-
-                    },
-                    style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), backgroundColor: Colors.green.shade500),
-                    child: const Text('Schedule a walk'),
+                  const SizedBox(height: 10),
+                  _buildThemedButton(
+                    onPressed: () => _showScheduleDialog(context, walker),
+                    label: 'Schedule a Walk',
+                    icon: Icons.calendar_today_outlined,
+                    color: Colors.white,
+                    textColor: primaryColor,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -331,6 +360,116 @@ class WandererDashboardController extends GetxController {
         },
       ),
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+    );
+  }
+
+  Widget _buildThemedButton({
+    required VoidCallback onPressed,
+    required String label,
+    required IconData icon,
+    required Color color,
+    Color textColor = Colors.white,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: textColor,
+        minimumSize: Size(Get.width, Get.height * 0.065),
+        textStyle: GoogleFonts.nunito(
+          fontSize: Get.width * 0.042,
+          fontWeight: FontWeight.bold,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Get.height * 0.02),
+          side: BorderSide(color: primaryColor, width: 1.5),
+        ),
+        elevation: 5,
+      ),
+    );
+  }
+
+  Widget _buildThemedAvatar(String? imageUrl, double radius) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.grey.shade200,
+      backgroundImage: imageUrl != null ? NetworkImage(imageUrl) : null,
+      child: imageUrl == null
+          ? Icon(
+        Icons.person,
+        size: radius,
+        color: Colors.grey.shade400,
+      )
+          : null,
+    );
+  }
+
+  Future<void> _showScheduleDialog(BuildContext context, Map<String, dynamic> walker) async {
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: primaryColor,
+              onPrimary: Colors.white,
+              onSurface: textPrimary,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: primaryColor,
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (selectedDate == null) return;
+
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: primaryColor,
+              onPrimary: Colors.white,
+              onSurface: textPrimary,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: primaryColor,
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (selectedTime == null) return;
+
+    final scheduled = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+
+    await walkController.scheduleWalk(
+      walkerId: walker['id']?.toString() ?? '',
+      wandererId: Supabase.instance.client.auth.currentUser?.id ?? '',
+      startTime: scheduled,
     );
   }
 
@@ -340,3 +479,4 @@ class WandererDashboardController extends GetxController {
     mapController!.animateCamera(CameraUpdate.newLatLngZoom(currentLatLng.value!, 15));
   }
 }
+

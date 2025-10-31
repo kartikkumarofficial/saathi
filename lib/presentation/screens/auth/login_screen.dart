@@ -17,7 +17,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final AuthController authController = Get.find<AuthController>();
-  final DashboardController dashboardController = Get.find<DashboardController>();
   final _formKey = GlobalKey<FormState>();
   bool _isPasswordVisible = false;
 
@@ -44,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
           width: w,
           decoration: const BoxDecoration(
             image: DecorationImage(
-              image: AssetImage("assets/auth/login_bg.png"),
+              image: AssetImage("assets/images/carousel1.png"),
               fit: BoxFit.cover,
               opacity: 0.12,
             ),

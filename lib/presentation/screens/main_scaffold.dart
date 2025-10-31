@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:saathi/presentation/screens/homescreen.dart';
-import 'package:saathi/presentation/screens/profile/profile_screen.dart';
+// import 'package:saathi/presentation/screens/profile/profile_screen.dart';
 import 'package:saathi/presentation/screens/walker_dashboard.dart';
 import 'package:saathi/presentation/screens/wanderer_dashboard.dart';
 import '../../controllers/nav_controller.dart';
 import '../../controllers/auth_controller.dart';
 import '../widgets/bottom_nav_bar_dark.dart';
-import '../widgets/bottom_navigation_bar.dart'; // using your BottomNavBar widget
+import '../widgets/bottom_navigation_bar.dart';
+import 'profile/profile_screen.dart'; // using your BottomNavBar widget
 
 class MainScaffold extends StatelessWidget {
   MainScaffold({super.key});
@@ -26,12 +27,14 @@ class MainScaffold extends StatelessWidget {
       final wandererScreens = [
         WandererDashboard(),
         HomePage(),
+        // HomePage(),
         ProfileScreen(),
       ];
 
       final walkerScreens = [
         WalkerDashboardScreen(),
         HomePage(),
+        // HomePage(),
         ProfileScreen(),
       ];
 
