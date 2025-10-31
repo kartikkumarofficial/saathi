@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../controllers/wanderer_details_controller.dart';
+import '../../controllers/walker_details_controller.dart';
 
 
 class ScheduleWalkScreen extends StatefulWidget {

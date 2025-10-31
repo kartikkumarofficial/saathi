@@ -5,6 +5,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../presentation/screens/walker_details_screen.dart';
+
 class WandererDashboardController extends GetxController {
   final supabase = Supabase.instance.client;
 
@@ -45,13 +47,36 @@ class WandererDashboardController extends GetxController {
     }
   }
 
+
+  Future<void> scheduleWalk(String walkerId, DateTime dateTime) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw 'User not logged in';
+
+      await supabase.from('walk_requests').insert({
+        'wanderer_id': user.id,
+        'walker_id': walkerId,
+        'scheduled_time': dateTime.toIso8601String(),
+        'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      debugPrint('Walk request created successfully.');
+    } catch (e) {
+      debugPrint("Error scheduling walk: $e");
+      Get.snackbar("Error", "Failed to schedule walk. Please try again.");
+    }
+  }
+
+
   Future<void> fetchWalkers() async {
     try {
       final response = await supabase
           .from('users')
-          .select('id, full_name, profile_image, location_lat, location_lng')
+          .select('id, full_name, profile_image, bio, language, interests, is_verified, location_lat, location_lng, role, status')
           .eq('role', 'walker')
           .eq('status', 'active');
+
 
       walkers.value = (response as List)
           .map((e) => Map<String, dynamic>.from(e))
@@ -108,13 +133,18 @@ class WandererDashboardController extends GetxController {
     _setMarkers();
     final w = walkers[index];
     final lat = (w['location_lat'] as num?)?.toDouble();
-    final lng = (w['location_lng'] as num?)?.toDouble();
+    final lng = (w['location_lng']  as num?)?.toDouble();
     if (lat != null && lng != null) {
       mapController?.animateCamera(
         CameraUpdate.newLatLngZoom(LatLng(lat, lng), 16),
       );
     }
   }
+
+  void openWalkerDetails(Map<String, dynamic> walker) {
+    Get.to(() => WalkerDetailsScreen(walker: walker), arguments: walker);
+  }
+
 
   void recenter() {
     if (currentLatLng.value != null && mapController != null) {

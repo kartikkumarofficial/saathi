@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../controllers/wanderer_dashboard_controller.dart';
-import 'wanderer_details_screen.dart';
+import 'walker_details_screen.dart';
 
 class WandererDashboard extends StatelessWidget {
   const WandererDashboard({super.key});
@@ -102,9 +102,9 @@ class WandererDashboard extends StatelessWidget {
                             return GestureDetector(
                               onTap: () {
                                 c.onMarkerTapped(i);
-                                Get.to(() =>
-                                    WandererDetailsScreen(walker: wData));
+                                c.openWalkerDetails(wData);
                               },
+
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 250),
                                 margin: EdgeInsets.symmetric(
