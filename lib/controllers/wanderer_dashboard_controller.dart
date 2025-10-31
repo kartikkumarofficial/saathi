@@ -1,96 +1,109 @@
+// lib/controllers/wanderer_dashboard_controller.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../presentation/screens/walker_details_screen.dart';
 
 class WandererDashboardController extends GetxController {
-  final supabase = Supabase.instance.client;
+  final SupabaseClient supabase = Supabase.instance.client;
 
   GoogleMapController? mapController;
   final Rxn<LatLng> currentLatLng = Rxn<LatLng>();
+
+  // reactive collections
   var walkers = <Map<String, dynamic>>[].obs;
   var markers = <Marker>[].obs;
-  var selectedIndex = RxnInt(); // 👈 make it reactive
+
+  // selected walker shown in bottomsheet
+  final Rxn<Map<String, dynamic>> selectedWalker = Rxn<Map<String, dynamic>>();
+  String? lastTappedMarkerId;
+
+  // debug helper
+  void debug(String msg) => debugPrint('[WDC] $msg');
 
   @override
   void onInit() {
     super.onInit();
-    _initLocationAndData();
+    _init();
   }
 
-  Future<void> _initLocationAndData() async {
+  Future<void> _init() async {
+    debug('Initializing dashboard...');
     await _getCurrentLocation();
     await fetchWalkers();
   }
 
+  /// get current device location
   Future<void> _getCurrentLocation() async {
     try {
+      debug('Requesting location services status...');
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return;
+      if (!serviceEnabled) {
+        debug('Location services disabled.');
+        // still continue; use fallback later
+        return;
+      }
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
+      if (permission == LocationPermission.deniedForever) {
+        debug('Location permission denied forever.');
+        return;
+      }
 
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.best),
       );
-
       currentLatLng.value = LatLng(pos.latitude, pos.longitude);
-    } catch (e) {
-      debugPrint("Location error: $e");
+      debug('Location obtained: ${pos.latitude}, ${pos.longitude}');
+    } catch (e, st) {
+      debug('Location error: $e\n$st');
     }
   }
 
-
-  Future<void> scheduleWalk(String walkerId, DateTime dateTime) async {
-    try {
-      final user = supabase.auth.currentUser;
-      if (user == null) throw 'User not logged in';
-
-      await supabase.from('walk_requests').insert({
-        'wanderer_id': user.id,
-        'walker_id': walkerId,
-        'scheduled_time': dateTime.toIso8601String(),
-        'status': 'pending',
-        'created_at': DateTime.now().toIso8601String(),
-      });
-
-      debugPrint('Walk request created successfully.');
-    } catch (e) {
-      debugPrint("Error scheduling walk: $e");
-      Get.snackbar("Error", "Failed to schedule walk. Please try again.");
-    }
-  }
-
-
+  /// fetch walkers from Supabase - intentionally doesn't request a `rating` field from users
+  /// to avoid "column does not exist" errors. Rating is shown as fallback in UI.
   Future<void> fetchWalkers() async {
     try {
-      final response = await supabase
+      debug('Fetching walkers from Supabase...');
+      final res = await supabase
           .from('users')
           .select('id, full_name, profile_image, bio, language, interests, is_verified, location_lat, location_lng, role, status')
           .eq('role', 'walker')
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .limit(100);
 
+      if (res == null) {
+        debug('Supabase returned null for users.');
+        walkers.clear();
+        markers.value = [];
+        return;
+      }
 
-      walkers.value = (response as List)
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+      if (res is List) {
+        walkers.value = res.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        debug('Fetched ${walkers.length} walkers.');
+      } else {
+        debug('Unexpected response type from supabase users select: ${res.runtimeType}');
+        walkers.clear();
+      }
 
-      _setMarkers();
-    } catch (e) {
-      debugPrint("Fetch error: $e");
-      Get.snackbar('Error', 'Failed to fetch wanderers');
+      setMarkers();
+    } catch (e, st) {
+      debug('Fetch error: $e\n$st');
+      Get.snackbar('Error', 'Failed to fetch walkers: $e', snackPosition: SnackPosition.BOTTOM);
+      walkers.clear();
+      markers.value = [];
     }
   }
 
-
-  void _setMarkers() {
+  /// create markers for user + walkers
+  void setMarkers() {
     final newMarkers = <Marker>[];
 
     if (currentLatLng.value != null) {
@@ -106,18 +119,16 @@ class WandererDashboardController extends GetxController {
       final w = walkers[i];
       final lat = (w['location_lat'] as num?)?.toDouble();
       final lng = (w['location_lng'] as num?)?.toDouble();
-
       if (lat == null || lng == null) continue;
 
+      final markerId = 'walker_$i';
       newMarkers.add(Marker(
-        markerId: MarkerId('walker_$i'),
+        markerId: MarkerId(markerId),
         position: LatLng(lat, lng),
         icon: BitmapDescriptor.defaultMarkerWithHue(
-          selectedIndex.value == i
-              ? BitmapDescriptor.hueGreen
-              : BitmapDescriptor.hueRed,
+          selectedWalker.value == w ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueRed,
         ),
-        onTap: () => onMarkerTapped(i),
+        onTap: () => onMarkerTapped(markerId, w),
       ));
     }
 
@@ -126,60 +137,222 @@ class WandererDashboardController extends GetxController {
 
   void onMapCreated(GoogleMapController controller) {
     mapController = controller;
+    // if we have a location, animate camera there
+    if (currentLatLng.value != null) {
+      controller.animateCamera(CameraUpdate.newLatLngZoom(currentLatLng.value!, 14));
+    }
   }
 
-  void onMarkerTapped(int index) {
-    selectedIndex.value = index;
-    _setMarkers();
-    final w = walkers[index];
-    final lat = (w['location_lat'] as num?)?.toDouble();
-    final lng = (w['location_lng']  as num?)?.toDouble();
+  /// marker tap: first tap shows a small popup + sets selectedWalker
+  /// second tap (same marker) opens full details bottom sheet / page
+  void onMarkerTapped(String markerId, Map<String, dynamic> walker) {
+    debug('Marker tapped: $markerId');
+
+    if (lastTappedMarkerId == markerId) {
+      // second tap -> open bottom sheet details
+      showWalkerDetailsBottomSheet(walker);
+      return;
+    }
+
+    lastTappedMarkerId = markerId;
+    selectedWalker.value = walker;
+    setMarkers();
+
+    final lat = (walker['location_lat'] as num?)?.toDouble();
+    final lng = (walker['location_lng'] as num?)?.toDouble();
     if (lat != null && lng != null) {
-      mapController?.animateCamera(
-        CameraUpdate.newLatLngZoom(LatLng(lat, lng), 16),
-      );
+      mapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 16));
     }
+
+    _showMarkerInfoPopup(walker);
   }
 
-  void openWalkerDetails(Map<String, dynamic> walker) {
-    Get.to(() => WalkerDetailsScreen(walker: walker), arguments: walker);
+  void _showMarkerInfoPopup(Map<String, dynamic> walker) {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(14.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundImage: walker['profile_image'] != null
+                    ? NetworkImage(walker['profile_image'])
+                    : const AssetImage('assets/avatar.png') as ImageProvider,
+              ),
+              const SizedBox(height: 8),
+              Text(walker['full_name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              Text(walker['bio'] ?? 'Available for walks', textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      Get.back(); // close dialog
+                    },
+                    child: const Text('Close'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Get.back();
+                      showWalkerDetailsBottomSheet(walker);
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700),
+                    child: const Text('View profile'),
+                  ),
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
+  /// shows a draggable bottom sheet containing full short info + actions
+  void showWalkerDetailsBottomSheet(Map<String, dynamic> walker) {
+    // set selectedWalker
+    selectedWalker.value = walker;
+    setMarkers();
 
-  void recenter() {
-    if (currentLatLng.value != null && mapController != null) {
-      mapController!.animateCamera(
-        CameraUpdate.newLatLngZoom(currentLatLng.value!, 15),
-      );
-    }
+    Get.bottomSheet(
+      DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.36,
+        minChildSize: 0.18,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 32,
+                        backgroundImage: walker['profile_image'] != null
+                            ? NetworkImage(walker['profile_image'])
+                            : const AssetImage('assets/avatar.png') as ImageProvider,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(walker['full_name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(Icons.star, color: Colors.amber, size: 18),
+                                const SizedBox(width: 6),
+                                Text("${(walker['rating'] ?? '4.8')}"),
+                                const SizedBox(width: 12),
+                                if (walker['is_verified'] == true)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
+                                    child: const Text('Verified', style: TextStyle(color: Colors.green)),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(walker['bio'] ?? 'No bio available'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      Get.back(); // close sheet
+                      Get.to(() => WalkerDetailsScreen(walker: walker), arguments: walker);
+                    },
+                    style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), backgroundColor: Colors.green.shade700),
+                    child: const Text('View full profile'),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () async {
+                      // open schedule dialog right from sheet
+                      DateTime? date = await showDatePicker(
+                        context: Get.context!,
+                        initialDate: DateTime.now().add(const Duration(days: 1)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 30)),
+                      );
+                      if (date == null) return;
+                      TimeOfDay? time = await showTimePicker(context: Get.context!, initialTime: TimeOfDay.now());
+                      if (time == null) return;
+                      final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+
+                      // schedule via controller method
+                      await scheduleWalk(walker['id']?.toString() ?? '', scheduled);
+                    },
+                    style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), backgroundColor: Colors.green.shade500),
+                    child: const Text('Schedule a walk'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      isScrollControlled: true,
+    );
   }
 
-  /// 📨 Send request to a walker
-  Future<void> sendRequest(Map<String, dynamic> walker) async {
+  /// schedule a walk: inserts into `walk_sessions` table (adjust field names as necessary)
+  Future<void> scheduleWalk(String walkerId, DateTime startAt) async {
     try {
-      final currentUser = supabase.auth.currentUser;
-      if (currentUser == null) {
-        Get.snackbar("Error", "Please log in to send requests");
+      final current = supabase.auth.currentUser;
+      if (current == null) {
+        Get.snackbar('Not signed in', 'Please sign in to schedule a walk', snackPosition: SnackPosition.BOTTOM);
         return;
       }
 
-      await supabase.from('walker_requests').insert({
-        'sender_id': currentUser.id,
-        'receiver_id': walker['id'],
-        'status': 'pending',
+      final payload = {
+        'wanderer_id': current.id,
+        'walker_id': walkerId,
+        'started_at': startAt.toIso8601String(),
+        'status': 'scheduled',
         'created_at': DateTime.now().toIso8601String(),
-      });
+      };
 
-      Get.snackbar(
-        'Request Sent ✅',
-        'Your request has been sent to ${walker['full_name']}',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green.shade100,
-        colorText: Colors.green.shade800,
-      );
-    } catch (e) {
-      debugPrint("Request error: $e");
-      Get.snackbar('Error', 'Failed to send request');
+      await supabase.from('walk_sessions').insert(payload);
+      Get.snackbar('Scheduled', 'Walk scheduled successfully', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green.shade100);
+    } catch (e, st) {
+      debug('schedule error: $e\n$st');
+      Get.snackbar('Error', 'Failed to schedule walk: $e', snackPosition: SnackPosition.BOTTOM);
     }
+  }
+
+  /// recenter map to user
+  void recenter() {
+    if (currentLatLng.value == null || mapController == null) return;
+    mapController!.animateCamera(CameraUpdate.newLatLngZoom(currentLatLng.value!, 15));
   }
 }

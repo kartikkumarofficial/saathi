@@ -1,197 +1,181 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
-import '../../controllers/wanderer_dashboard_controller.dart'; // adjust path if needed
+import '../../controllers/walker_details_controller.dart';
+import '../../controllers/wanderer_dashboard_controller.dart';
 
-class WalkerDetailsScreen extends StatelessWidget {
+class WalkerDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> walker;
   const WalkerDetailsScreen({super.key, required this.walker});
 
   @override
+  State<WalkerDetailsScreen> createState() => _WalkerDetailsScreenState();
+}
+
+class _WalkerDetailsScreenState extends State<WalkerDetailsScreen> {
+  final WalkerDetailsController ctrl = Get.put(WalkerDetailsController());
+  final WandererDashboardController dashCtrl = Get.find<WandererDashboardController>();
+
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.walker['id']?.toString();
+    if (id != null) ctrl.fetchReviews(id);
+  }
+
+  Future<void> _scheduleWalk() async {
+    final walker = widget.walker;
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+    );
+
+    if (selectedDate == null) return;
+
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+
+    if (selectedTime == null) return;
+
+    final scheduled = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+
+    await dashCtrl.scheduleWalk(walker['id'], scheduled);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final w = MediaQuery.of(context).size.width;
-    final c = Get.find<WandererDashboardController>();
+    final w = Get.width;
+    final walker = widget.walker;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(walker['full_name'] ?? "Walker Details"),
+        title: Text(walker['full_name'] ?? 'Walker'),
         backgroundColor: Colors.green.shade700,
-        centerTitle: true,
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(w * 0.05),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Profile photo
             CircleAvatar(
               radius: w * 0.18,
-              backgroundImage: NetworkImage(
-                walker['profile_image'] ?? 'https://via.placeholder.com/100',
-              ),
+              backgroundImage: walker['profile_image'] != null
+                  ? NetworkImage(walker['profile_image'])
+                  : null,
             ),
-            const SizedBox(height: 16),
-
-            // Name
+            const SizedBox(height: 12),
             Text(
-              walker['full_name'] ?? 'Unknown Walker',
+              walker['full_name'] ?? 'Unknown',
               style: TextStyle(
-                fontWeight: FontWeight.bold,
                 fontSize: w * 0.06,
+                fontWeight: FontWeight.bold,
                 color: Colors.green.shade800,
               ),
             ),
-
-            // Verified badge
-            if (walker['is_verified'] == true)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  "✅ Verified Walker",
-                  style: TextStyle(
-                    color: Colors.green.shade700,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-
             const SizedBox(height: 8),
-
-            // Rating
+            if (walker['is_verified'] == true)
+              Text('✅ Verified',
+                  style: TextStyle(color: Colors.green.shade700)),
+            const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.star, color: Colors.amber, size: 20),
-                const SizedBox(width: 4),
+                const Icon(Icons.star, color: Colors.amber),
+                const SizedBox(width: 6),
                 Text(
-                  "${walker['rating'] ?? '4.8'}",
-                  style: TextStyle(
-                    fontSize: w * 0.045,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  "${walker['rating'] ?? 4.8}",
+                  style: TextStyle(fontSize: w * 0.045),
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
-            // Bio
             Text(
-              walker['bio'] ??
-                  "Friendly and experienced walker, ready to accompany you on your next peaceful walk.",
+              walker['bio'] ?? 'No bio provided',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: w * 0.04,
-                height: 1.4,
-              ),
+              style: TextStyle(color: Colors.grey[700]),
             ),
-
             const SizedBox(height: 20),
 
-            // Languages
-            if (walker['language'] != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Languages Spoken:",
-                    style: TextStyle(
-                      fontSize: w * 0.045,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green.shade800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    children: (walker['language'] as List)
-                        .map((lang) => Chip(
-                      label: Text(lang.toString()),
-                      backgroundColor: Colors.green.shade50,
-                    ))
-                        .toList(),
-                  ),
-                ],
-              ),
-
-            const SizedBox(height: 20),
-
-            // Interests
-            if (walker['interests'] != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Interests:",
-                    style: TextStyle(
-                      fontSize: w * 0.045,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green.shade800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    children: (walker['interests'] as List)
-                        .map((intst) => Chip(
-                      label: Text(intst.toString()),
-                      backgroundColor: Colors.green.shade50,
-                    ))
-                        .toList(),
-                  ),
-                ],
-              ),
-
-            const SizedBox(height: 30),
-
-            // Schedule button
+            // ✅ Updated schedule button
             ElevatedButton.icon(
-              onPressed: () => _showScheduleDialog(context, c, walker),
-              icon: const Icon(Icons.calendar_today, color: Colors.white),
-              label: const Text("Schedule Walk",
-                  style: TextStyle(color: Colors.white, fontSize: 16)),
+              onPressed: _scheduleWalk,
+              icon: const Icon(Icons.calendar_today),
+              label: const Text('Schedule a Walk'),
               style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
                 backgroundColor: Colors.green.shade700,
-                minimumSize: Size(double.infinity, 50),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
+
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Reviews',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: w * 0.05,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // 🗣 Reviews list
+            Obx(() {
+              if (ctrl.isLoading.value) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (ctrl.reviews.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'No reviews yet',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                );
+              }
+              return Column(
+                children: ctrl.reviews.map((r) {
+                  final reviewer = r['reviewer'] as Map<String, dynamic>?;
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: reviewer != null &&
+                            reviewer['profile_image'] != null
+                            ? NetworkImage(reviewer['profile_image'])
+                            : null,
+                      ),
+                      title: Text(reviewer?['full_name'] ?? 'Anonymous'),
+                      subtitle: Text(r['comment'] ?? ''),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.star,
+                              color: Colors.amber, size: 16),
+                          const SizedBox(width: 6),
+                          Text('${r['rating'] ?? 0}'),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            }),
           ],
         ),
       ),
     );
   }
-
-  Future<void> _showScheduleDialog(
-      BuildContext context, WandererDashboardController c, Map<String, dynamic> walker) async {
-    DateTime? selectedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
-    if (selectedDate == null) return;
-
-    TimeOfDay? selectedTime =
-    await showTimePicker(context: context, initialTime: TimeOfDay.now());
-    if (selectedTime == null) return;
-
-    final scheduled = DateTime(selectedDate.year, selectedDate.month, selectedDate.day,
-        selectedTime.hour, selectedTime.minute);
-
-    await c.scheduleWalk(walker['id'], scheduled);
-
-    Get.snackbar(
-      "Walk Scheduled",
-      "You scheduled a walk with ${walker['full_name']} on ${DateFormat('MMM d, hh:mm a').format(scheduled)}",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.green.shade100,
-      colorText: Colors.black,
-    );
-  }
 }
-
-

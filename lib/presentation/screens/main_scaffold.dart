@@ -54,7 +54,7 @@ class MainScaffold extends StatelessWidget {
 
     return Obx(
           () => Scaffold(
-        backgroundColor: const Color(0xFF121212),
+        // backgroundColor: Colors.transparent,
         body: screens[navController.selectedIndex.value],
         bottomNavigationBar: BottomNavBar(navController: navController),
       ),
