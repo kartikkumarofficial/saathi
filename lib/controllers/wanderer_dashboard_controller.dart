@@ -12,7 +12,7 @@ class WandererDashboardController extends GetxController {
   final Rxn<LatLng> currentLatLng = Rxn<LatLng>();
   var walkers = <Map<String, dynamic>>[].obs;
   var markers = <Marker>[].obs;
-  int? selectedIndex;
+  var selectedIndex = RxnInt(); // 👈 make it reactive
 
   @override
   void onInit() {
@@ -36,8 +36,8 @@ class WandererDashboardController extends GetxController {
       }
 
       final pos = await Geolocator.getCurrentPosition(
-          locationSettings:
-          const LocationSettings(accuracy: LocationAccuracy.best));
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.best),
+      );
 
       currentLatLng.value = LatLng(pos.latitude, pos.longitude);
     } catch (e) {
@@ -49,19 +49,21 @@ class WandererDashboardController extends GetxController {
     try {
       final response = await supabase
           .from('users')
-          .select('id, full_name, profile_image, location_lat, location_lng, rating')
+          .select('id, full_name, profile_image, location_lat, location_lng')
           .eq('role', 'walker')
           .eq('status', 'active');
 
       walkers.value = (response as List)
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+
       _setMarkers();
     } catch (e) {
       debugPrint("Fetch error: $e");
       Get.snackbar('Error', 'Failed to fetch wanderers');
     }
   }
+
 
   void _setMarkers() {
     final newMarkers = <Marker>[];
@@ -86,7 +88,9 @@ class WandererDashboardController extends GetxController {
         markerId: MarkerId('walker_$i'),
         position: LatLng(lat, lng),
         icon: BitmapDescriptor.defaultMarkerWithHue(
-          i == selectedIndex ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueRed,
+          selectedIndex.value == i
+              ? BitmapDescriptor.hueGreen
+              : BitmapDescriptor.hueRed,
         ),
         onTap: () => onMarkerTapped(i),
       ));
@@ -100,7 +104,7 @@ class WandererDashboardController extends GetxController {
   }
 
   void onMarkerTapped(int index) {
-    selectedIndex = index;
+    selectedIndex.value = index;
     _setMarkers();
     final w = walkers[index];
     final lat = (w['location_lat'] as num?)?.toDouble();
