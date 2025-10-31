@@ -27,7 +27,7 @@ class MainScaffold extends StatelessWidget {
 
     /// Different screen sets depending on role
     final List<Widget> wandererScreens = [
-      WandererDashboard(),
+      WandererDashboardGoogle(),
       HomePage(),
       HomePage(),
       HomePage(),
