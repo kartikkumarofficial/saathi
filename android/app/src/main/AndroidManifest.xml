@@ -35,7 +35,8 @@
         <!-- 🗺️ Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
+            android:value="AIzaSyApYZ2YIidP0BOv-jeJJRyYjYvTRjR8iHE" />
+<!--            android:value="${MAPS_API_KEY}" />-->
 
         <!-- Flutter tool meta -->
         <meta-data
