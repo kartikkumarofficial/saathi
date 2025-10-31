@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:saathi/controllers/schedule_walk_controller.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../presentation/screens/walker_details_screen.dart';
 
@@ -11,6 +12,7 @@ class WandererDashboardController extends GetxController {
   final SupabaseClient supabase = Supabase.instance.client;
 
   GoogleMapController? mapController;
+  final walkController = Get.find<ScheduleWalkController>();
   final Rxn<LatLng> currentLatLng = Rxn<LatLng>();
 
   // reactive collections
@@ -308,8 +310,15 @@ class WandererDashboardController extends GetxController {
                       if (time == null) return;
                       final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
 
+
                       // schedule via controller method
-                      await scheduleWalk(walker['id']?.toString() ?? '', scheduled);
+                      await walkController.scheduleWalk(
+                        walkerId: walker['id']?.toString() ?? '',
+                        wandererId: Supabase.instance.client.auth.currentUser?.id ?? '',
+                        startTime: scheduled,
+                      );
+
+
                     },
                     style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), backgroundColor: Colors.green.shade500),
                     child: const Text('Schedule a walk'),
@@ -323,31 +332,6 @@ class WandererDashboardController extends GetxController {
       ),
       isScrollControlled: true,
     );
-  }
-
-  /// schedule a walk: inserts into `walk_sessions` table (adjust field names as necessary)
-  Future<void> scheduleWalk(String walkerId, DateTime startAt) async {
-    try {
-      final current = supabase.auth.currentUser;
-      if (current == null) {
-        Get.snackbar('Not signed in', 'Please sign in to schedule a walk', snackPosition: SnackPosition.BOTTOM);
-        return;
-      }
-
-      final payload = {
-        'wanderer_id': current.id,
-        'walker_id': walkerId,
-        'started_at': startAt.toIso8601String(),
-        'status': 'scheduled',
-        'created_at': DateTime.now().toIso8601String(),
-      };
-
-      await supabase.from('walk_sessions').insert(payload);
-      Get.snackbar('Scheduled', 'Walk scheduled successfully', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green.shade100);
-    } catch (e, st) {
-      debug('schedule error: $e\n$st');
-      Get.snackbar('Error', 'Failed to schedule walk: $e', snackPosition: SnackPosition.BOTTOM);
-    }
   }
 
   /// recenter map to user

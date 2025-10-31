@@ -46,3 +46,4 @@ app.*.map.json
 
 
 lib/utils/constants.dart
+android/secrets.properties

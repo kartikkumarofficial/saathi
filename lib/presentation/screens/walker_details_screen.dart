@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../controllers/schedule_walk_controller.dart';
 import '../../controllers/walker_details_controller.dart';
 import '../../controllers/wanderer_dashboard_controller.dart';
 
@@ -14,6 +15,7 @@ class WalkerDetailsScreen extends StatefulWidget {
 class _WalkerDetailsScreenState extends State<WalkerDetailsScreen> {
   final WalkerDetailsController ctrl = Get.put(WalkerDetailsController());
   final WandererDashboardController dashCtrl = Get.find<WandererDashboardController>();
+  final walkController = Get.find<ScheduleWalkController>();
 
   @override
   void initState() {
@@ -22,34 +24,7 @@ class _WalkerDetailsScreenState extends State<WalkerDetailsScreen> {
     if (id != null) ctrl.fetchReviews(id);
   }
 
-  Future<void> _scheduleWalk() async {
-    final walker = widget.walker;
-    final selectedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
 
-    if (selectedDate == null) return;
-
-    final selectedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-
-    if (selectedTime == null) return;
-
-    final scheduled = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-      selectedTime.hour,
-      selectedTime.minute,
-    );
-
-    await dashCtrl.scheduleWalk(walker['id'], scheduled);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,7 +81,41 @@ class _WalkerDetailsScreenState extends State<WalkerDetailsScreen> {
 
             // ✅ Updated schedule button
             ElevatedButton.icon(
-              onPressed: _scheduleWalk,
+              onPressed: () async {
+                // 1️⃣ Pick a date
+                final selectedDate = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now().add(const Duration(days: 1)),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 30)),
+                );
+
+                if (selectedDate == null) return;
+
+                // 2️⃣ Pick a time
+                final selectedTime = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.now(),
+                );
+
+                if (selectedTime == null) return;
+
+                // 3️⃣ Combine both
+                final scheduled = DateTime(
+                  selectedDate.year,
+                  selectedDate.month,
+                  selectedDate.day,
+                  selectedTime.hour,
+                  selectedTime.minute,
+                );
+
+                // 4️⃣ Call controller function
+                await walkController.scheduleWalk(
+                  walkerId: walker['id'],
+                  wandererId: dashCtrl.supabase.auth.currentUser!.id,
+                  startTime: scheduled,
+                );
+              },
               icon: const Icon(Icons.calendar_today),
               label: const Text('Schedule a Walk'),
               style: ElevatedButton.styleFrom(
@@ -117,6 +126,7 @@ class _WalkerDetailsScreenState extends State<WalkerDetailsScreen> {
                 ),
               ),
             ),
+
 
             const SizedBox(height: 20),
             Align(

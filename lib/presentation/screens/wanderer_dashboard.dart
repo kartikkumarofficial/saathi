@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../controllers/schedule_walk_controller.dart';
 import '../../controllers/wanderer_dashboard_controller.dart';
 import 'walker_details_screen.dart';
 
@@ -137,61 +138,146 @@ class WandererDashboard extends StatelessWidget {
     );
   }
 
-  Widget _selectedPreview(WandererDashboardController c, Map<String, dynamic> selected, ScrollController sc, double w, double h) {
+  Widget _selectedPreview(
+      WandererDashboardController c,
+      Map<String, dynamic> selected,
+      ScrollController sc,
+      double w,
+      double h,
+      ) {
+    final walkController = Get.find<ScheduleWalkController>();
+
     return SingleChildScrollView(
       controller: sc,
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          Container(width: 44, height: 4, decoration: BoxDecoration(color: Colors.grey[350], borderRadius: BorderRadius.circular(6))),
+          Container(
+            width: 44,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[350],
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
           const SizedBox(height: 12),
+
+          // Walker preview
           Row(
             children: [
-              CircleAvatar(radius: 36, backgroundImage: selected['profile_image'] != null ? NetworkImage(selected['profile_image']) : null),
+              CircleAvatar(
+                radius: 36,
+                backgroundImage: selected['profile_image'] != null
+                    ? NetworkImage(selected['profile_image'])
+                    : null,
+              ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(selected['full_name'] ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  const SizedBox(height: 6),
-                  Row(children: [
-                    const Icon(Icons.star, color: Colors.amber, size: 16),
-                    const SizedBox(width: 6),
-                    Text("${selected['rating'] ?? 4.8}"),
-                    const SizedBox(width: 12),
-                    if (selected['is_verified'] == true)
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)), child: const Text('Verified', style: TextStyle(color: Colors.green)))
-                  ]),
-                ]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(selected['full_name'] ?? 'Unknown',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 18)),
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Icon(Icons.star, color: Colors.amber, size: 16),
+                      const SizedBox(width: 6),
+                      Text("${selected['rating'] ?? 4.8}"),
+                      const SizedBox(width: 12),
+                      if (selected['is_verified'] == true)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Verified',
+                            style: TextStyle(color: Colors.green),
+                          ),
+                        ),
+                    ]),
+                  ],
+                ),
               ),
               IconButton(
                 onPressed: () {
-                  // clear selection - goes back to list
                   c.selectedWalker.value = null;
                   c.setMarkers();
                 },
                 icon: const Icon(Icons.keyboard_arrow_down),
-              )
+              ),
             ],
           ),
+
           const SizedBox(height: 12),
           Text(selected['bio'] ?? 'No bio available'),
           const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: ElevatedButton(onPressed: () => c.showWalkerDetailsBottomSheet(selected), style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700), child: const Text('Open profile'))),
-            const SizedBox(width: 12),
-            Expanded(child: ElevatedButton(onPressed: () async {
-              // schedule quick flow
-              DateTime? date = await showDatePicker(context: Get.context!, initialDate: DateTime.now().add(const Duration(days: 1)), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 30)));
-              if (date == null) return;
-              TimeOfDay? time = await showTimePicker(context: Get.context!, initialTime: TimeOfDay.now());
-              if (time == null) return;
-              final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-              await c.scheduleWalk(selected['id']?.toString() ?? '', scheduled);
-            }, style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade500), child: const Text('Schedule'))),
-          ]),
+
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => c.showWalkerDetailsBottomSheet(selected),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade700),
+                  child: const Text('Open Profile'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    // 🗓 Pick date
+                    final selectedDate = await showDatePicker(
+                      context: Get.context!,
+                      initialDate: DateTime.now().add(const Duration(days: 1)),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 30)),
+                    );
+                    if (selectedDate == null) return;
+
+                    // ⏰ Pick time
+                    final selectedTime = await showTimePicker(
+                      context: Get.context!,
+                      initialTime: TimeOfDay.now(),
+                    );
+                    if (selectedTime == null) return;
+
+                    final scheduled = DateTime(
+                      selectedDate.year,
+                      selectedDate.month,
+                      selectedDate.day,
+                      selectedTime.hour,
+                      selectedTime.minute,
+                    );
+
+                    // ✅ Use walkController instead of dashboard controller
+                    await walkController.scheduleWalk(
+                      walkerId: selected['id'].toString(),
+                      wandererId: c.supabase.auth.currentUser!.id,
+                      startTime: scheduled,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  child: const Text('Schedule Walk'),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
         ],
       ),
     );
   }
+
 }

@@ -13,7 +13,7 @@ class ScheduleWalkController extends GetxController {
     try {
       isLoading.value = true;
 
-      final response = await supabase.from('walk_requests').insert({
+      await supabase.from('walk_requests').insert({
         'walker_id': walkerId,
         'wanderer_id': wandererId,
         'status': 'pending', // pending until walker accepts
@@ -21,20 +21,17 @@ class ScheduleWalkController extends GetxController {
         'created_at': DateTime.now().toUtc().toIso8601String(),
       });
 
-      if (response.error != null) {
-        throw response.error!;
-      }
-
       Get.snackbar(
-        "Walk Requested",
+        "Walk Requested ✅",
         "Your walk request has been sent to the walker!",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Get.theme.colorScheme.secondaryContainer,
       );
     } catch (e) {
       Get.snackbar(
-        "Failed to Schedule",
+        "Failed to Schedule ❌",
         e.toString(),
+        snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Get.theme.colorScheme.errorContainer,
       );
     } finally {
