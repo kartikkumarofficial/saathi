@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:saathi/presentation/screens/homescreen.dart';
-import 'package:saathi/presentation/screens/profile_screen.dart';
+import 'package:saathi/presentation/screens/profile/profile_screen.dart';
 import 'package:saathi/presentation/screens/walker_dashboard.dart';
 import 'package:saathi/presentation/screens/wanderer_dashboard.dart';
 import '../../controllers/nav_controller.dart';

@@ -19,7 +19,12 @@ class _WalkerDashboardScreenState extends State<WalkerDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
+    _initializeDashboard();
+  }
+
+  Future<void> _initializeDashboard() async {
+    await _getCurrentLocation();
+    await walkerCtrl.fetchWalkRequests(); // 👈 ensure data loads after location
   }
 
   Future<void> _getCurrentLocation() async {
@@ -55,6 +60,14 @@ class _WalkerDashboardScreenState extends State<WalkerDashboardScreen> {
       appBar: AppBar(
         title: const Text('Walker Dashboard'),
         backgroundColor: Colors.green.shade700,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              await walkerCtrl.fetchWalkRequests();
+            },
+          )
+        ],
       ),
       body: Column(
         children: [
@@ -96,59 +109,74 @@ class _WalkerDashboardScreenState extends State<WalkerDashboardScreen> {
                 return const Center(child: CircularProgressIndicator());
               }
 
-              final requests = walkerCtrl.walkRequests;
-              if (requests.isEmpty) {
+              if (walkerCtrl.walkRequests.isEmpty) {
                 return const Center(
                   child: Text(
-                    "No new walk requests yet 👣",
+                    "No walk requests yet 👣",
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                 );
               }
 
-              return ListView.builder(
-                itemCount: requests.length,
-                itemBuilder: (context, index) {
-                  final req = requests[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 3,
-                    child: ListTile(
-                      leading: const Icon(Icons.person_pin_circle, color: Colors.green),
-                      title: Text("Request from: ${req['wanderer_id']}"),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("Start: ${req['start_location'] ?? 'Not specified'}"),
-                          Text("End: ${req['end_location'] ?? 'Not specified'}"),
-                          Text("Status: ${req['status']}"),
-                        ],
+              return RefreshIndicator(
+                onRefresh: walkerCtrl.fetchWalkRequests,
+                child: ListView.builder(
+                  itemCount: walkerCtrl.walkRequests.length,
+                  itemBuilder: (context, index) {
+                    final req = walkerCtrl.walkRequests[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.check_circle, color: Colors.green),
-                            onPressed: () async {
-                              await walkerCtrl.updateRequestStatus(req['id'], 'accepted');
-                              Get.snackbar("Accepted ✅", "You accepted the walk request");
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.cancel, color: Colors.red),
-                            onPressed: () async {
-                              await walkerCtrl.updateRequestStatus(req['id'], 'rejected');
-                              Get.snackbar("Rejected ❌", "You rejected the walk request");
-                            },
-                          ),
-                        ],
+                      elevation: 3,
+                      child: ListTile(
+                        leading: const Icon(Icons.person_pin_circle,
+                            color: Colors.green),
+                        title: Text(
+                          "Request from: ${req['wanderer_name'] ?? req['wanderer_id'] ?? 'Unknown'}",
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Start: ${req['start_location'] ?? 'N/A'}"),
+                            Text("End: ${req['end_location'] ?? 'N/A'}"),
+                            Text("Status: ${req['status'] ?? 'Pending'}"),
+                          ],
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.check_circle,
+                                  color: Colors.green),
+                              onPressed: () async {
+                                await walkerCtrl.updateRequestStatus(
+                                    req['id'], 'accepted');
+                                Get.snackbar("Accepted ✅",
+                                    "You accepted the walk request");
+                                walkerCtrl.fetchWalkRequests();
+                              },
+                            ),
+                            IconButton(
+                              icon:
+                              const Icon(Icons.cancel, color: Colors.red),
+                              onPressed: () async {
+                                await walkerCtrl.updateRequestStatus(
+                                    req['id'], 'rejected');
+                                Get.snackbar("Rejected ❌",
+                                    "You rejected the walk request");
+                                walkerCtrl.fetchWalkRequests();
+                              },
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               );
             }),
           ),
