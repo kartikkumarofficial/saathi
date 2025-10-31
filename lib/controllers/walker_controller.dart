@@ -6,6 +6,25 @@ class WalkerController extends GetxController {
 
   var walkRequests = [].obs;
   var isLoading = false.obs;
+  @override
+  void onInit() {
+    super.onInit();
+    final walkerId = supabase.auth.currentUser!.id;
+    fetchRequests(walkerId);
+
+    // 🔁 Realtime listener (works with latest Supabase SDK)
+    supabase
+        .channel('walk_requests_changes')
+        .onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'walk_requests',
+      callback: (payload) {
+        fetchRequests(walkerId);
+      },
+    )
+        .subscribe();
+  }
 
   Future<void> fetchRequests(String walkerId) async {
     isLoading.value = true;
@@ -25,6 +44,6 @@ class WalkerController extends GetxController {
         .update({'status': status})
         .eq('id', requestId);
     await fetchRequests(
-        supabase.auth.currentUser!.id); // refresh list after update
+        supabase.auth.currentUser!.id);
   }
 }

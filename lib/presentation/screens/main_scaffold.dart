@@ -1,63 +1,50 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:saathi/presentation/screens/homescreen.dart';
+import 'package:saathi/presentation/screens/profile_screen.dart';
+import 'package:saathi/presentation/screens/walker_dashboard.dart';
 import 'package:saathi/presentation/screens/wanderer_dashboard.dart';
 import '../../controllers/nav_controller.dart';
 import '../../controllers/auth_controller.dart';
-
 import '../widgets/bottom_nav_bar_dark.dart';
-import '../widgets/bottom_navigation_bar.dart';
-
-// // Screens
-// import 'wanderer_home_screen.dart';
-// import 'walker_home_screen.dart';
-// import 'bookings_screen.dart';
-// import 'chat_screen.dart';
-// import 'profile_screen.dart';
+import '../widgets/bottom_navigation_bar.dart'; // using your BottomNavBar widget
 
 class MainScaffold extends StatelessWidget {
   MainScaffold({super.key});
 
-  final NavController navController = Get.find<NavController>();
+  // GetX controllers
+  final NavController navController = Get.put(NavController());
   final AuthController authController = Get.find<AuthController>();
 
   @override
   Widget build(BuildContext context) {
-    final userRole = authController.user.value?.role ?? 'wanderer';
+    return Obx(() {
+      final userRole = authController.user.value?.role ?? 'wanderer';
+      final currentIndex = navController.selectedIndex.value;
 
-    /// Different screen sets depending on role
-    final List<Widget> wandererScreens = [
-      WandererDashboard(),
-      HomePage(),
-      HomePage(),
-      HomePage(),
+      // Screens for each role
+      final wandererScreens = [
+        WandererDashboard(),
+        HomePage(),
+        ProfileScreen(),
+      ];
 
-      // const BookingsScreen(),
-      // const ChatScreen(),
-      // const ProfileScreen(),
-    ];
+      final walkerScreens = [
+        WalkerDashboardScreen(),
+        HomePage(),
+        ProfileScreen(),
+      ];
 
-    final List<Widget> walkerScreens = [
-      HomePage(),
-      HomePage(),
-      HomePage(),
-      HomePage(),
-      // const WalkerHomeScreen(),
-      // const BookingsScreen(),
-      // const ChatScreen(),
-      // const ProfileScreen(),
-    ];
+      // Select screen set based on user role
+      final screens = userRole == 'walker' ? walkerScreens : wandererScreens;
 
-    /// Pick correct one
-    final List<Widget> screens =
-    userRole == 'walker' ? walkerScreens : wandererScreens;
-
-    return Obx(
-          () => Scaffold(
-        // backgroundColor: Colors.transparent,
-        body: screens[navController.selectedIndex.value],
+      return Scaffold(
+        body: IndexedStack(
+          index: currentIndex,
+          children: screens,
+        ),
         bottomNavigationBar: BottomNavBar(navController: navController),
-      ),
-    );
+      );
+    });
   }
 }

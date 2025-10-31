@@ -2,11 +2,9 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:saathi/controllers/user_controller.dart';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../data/services/cloudinary_service.dart';
+import '../controllers/user_controller.dart';
 
 class EditAccountController extends GetxController {
   final nameController = TextEditingController();
@@ -16,13 +14,14 @@ class EditAccountController extends GetxController {
   final isLoading = false.obs;
   final selectedImage = Rxn<File>();
   final userController = Get.find<UserController>();
+  final supabase = Supabase.instance.client;
 
   @override
   void onInit() {
+    super.onInit();
     nameController.text = userController.userName.value;
     emailController.text = userController.email.value;
     aboutController.text = userController.about.value;
-    super.onInit();
   }
 
   Future<void> pickImage() async {
@@ -34,16 +33,21 @@ class EditAccountController extends GetxController {
 
   Future<void> saveChanges() async {
     isLoading.value = true;
+
     try {
       String? imageUrl = userController.profileImageUrl.value;
+
+      // ✅ Upload and replace image if selected
       if (selectedImage.value != null) {
-        final uploadedUrl =
-        await CloudinaryService.uploadImage(selectedImage.value!);
-        if (uploadedUrl != null) {
-          imageUrl = uploadedUrl;
+        final newUrl = await CloudinaryService.uploadAndReplaceImage(
+          imageFile: selectedImage.value!,
+          oldImageUrl: userController.profileImageUrl.value,
+        );
+
+        if (newUrl != null) {
+          imageUrl = newUrl;
         } else {
-          Get.snackbar('Error', 'Image upload failed',
-              colorText: Colors.white);
+          Get.snackbar('Error', 'Image upload failed', colorText: Colors.white);
           return;
         }
       }
@@ -51,20 +55,21 @@ class EditAccountController extends GetxController {
       final name = nameController.text.trim();
       final email = emailController.text.trim();
       final about = aboutController.text.trim();
-      final user = Supabase.instance.client.auth.currentUser;
+      final currentUser = supabase.auth.currentUser;
 
-      if (user != null) {
-        await Supabase.instance.client.from('users').update({
+      if (currentUser != null) {
+        // ✅ Update Supabase 'users' table
+        await supabase.from('users').update({
           'username': name,
           'email': email,
           'profile_image': imageUrl,
           'about': about,
-        }).eq('id', user.id);
+        }).eq('id', currentUser.id);
 
-        await Supabase.instance.client.auth.updateUser(
-          UserAttributes(email: email),
-        );
+        // ✅ Update Supabase auth user email
+        await supabase.auth.updateUser(UserAttributes(email: email));
 
+        // ✅ Update local state
         userController.userName.value = name;
         userController.email.value = email;
         userController.profileImageUrl.value = imageUrl ?? '';

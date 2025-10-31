@@ -10,10 +10,8 @@ import '../presentation/screens/role_selection_screen.dart';
 class AuthController extends GetxController {
   final SupabaseClient supabase = Supabase.instance.client;
 
-  // Observable user model
   final Rx<UserModel?> user = Rx<UserModel?>(null);
 
-  // Text controllers
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
@@ -46,15 +44,13 @@ class AuthController extends GetxController {
         password: passwordController.text.trim(),
       );
 
-      if (response.user == null) {
-        throw 'Sign up failed. Please try again.';
-      }
+      if (response.user == null) throw 'Sign up failed. Please try again.';
 
       await supabase.from('users').insert({
         'id': response.user!.id,
         'email': emailController.text.trim(),
         'full_name': nameController.text.trim(),
-        'role': 'wanderer', // default until user picks one
+        'role': 'wanderer',
         'profile_image':
         'https://api.dicebear.com/6.x/pixel-art/png?seed=${emailController.text.trim()}',
       });
@@ -64,16 +60,12 @@ class AuthController extends GetxController {
       passwordController.clear();
       confirmPasswordController.clear();
 
-      // go to role selection after signup
       Get.offAll(() => RoleSelectionScreen());
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        e.toString().replaceAll('Exception: ', ''),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      Get.snackbar('Error', e.toString(),
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white);
     } finally {
       isLoading.value = false;
     }
@@ -97,19 +89,14 @@ class AuthController extends GetxController {
 
       await fetchUserAndNavigate(response.user!.id);
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        e.toString().replaceAll('Exception: ', ''),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      Get.snackbar('Error', e.toString(),
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white);
     } finally {
       isLoading.value = false;
     }
   }
-
-
 
   // --------------------------------------------------------
   // UPDATE ROLE
@@ -119,72 +106,62 @@ class AuthController extends GetxController {
       final uid = supabase.auth.currentUser?.id;
       if (uid == null) throw "User not logged in";
 
-      // Update on server first
-      final res = await supabase.from('users').update({'role': role}).eq('id', uid);
+      await supabase.from('users').update({'role': role}).eq('id', uid);
 
-      // Optionally check res for errors; Supabase client usually throws on error
-      // Now update local reactive user immutably using copyWith
       final current = user.value;
       if (current != null) {
         user.value = current.copyWith(role: role);
       } else {
-        // If local 'user' not loaded, fetch from Supabase and set
         final fresh = await getUserFromSupabase(uid);
-        if (fresh != null) {
-          user.value = fresh.copyWith(role: role);
-        }
+        if (fresh != null) user.value = fresh.copyWith(role: role);
       }
-      user.refresh();
 
-      print("✅ Role updated successfully: $role");
+      user.refresh();
+      Get.snackbar('Success', 'Your role has been updated to $role!',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white);
     } catch (e) {
       print("❌ Error updating role: $e");
       rethrow;
     }
   }
 
-
-
   // --------------------------------------------------------
-  // FETCH USER
+  // FETCH USER & NAVIGATE
   // --------------------------------------------------------
   Future<void> fetchUserAndNavigate(String userId) async {
     try {
-      final Map<String, dynamic> response =
-      await supabase.from('users').select().eq('id', userId).single() as Map<String, dynamic>;
+      final response =
+      await supabase.from('users').select().eq('id', userId).single();
 
       user.value = UserModel.fromJson(response);
       user.refresh();
 
-      // Navigate based on role
       if (user.value!.role == null || user.value!.role!.isEmpty) {
         Get.offAll(() => RoleSelectionScreen());
       } else {
         Get.offAll(() => MainScaffold());
       }
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Could not retrieve user details. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      Get.snackbar('Error', 'Could not retrieve user details. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white);
       Get.offAll(() => const LoginScreen());
     }
   }
 
   Future<UserModel?> getUserFromSupabase(String id) async {
     try {
-      final Map<String, dynamic> response =
-      await supabase.from('users').select().eq('id', id).single() as Map<String, dynamic>;
+      final response =
+      await supabase.from('users').select().eq('id', id).single();
       return UserModel.fromJson(response);
     } catch (e) {
       print('[ERROR] getUserFromSupabase: $e');
       return null;
     }
   }
-
 
   // --------------------------------------------------------
   // GOOGLE SIGN-IN
@@ -204,19 +181,13 @@ class AuthController extends GetxController {
         }
       });
     } catch (e) {
-      Get.snackbar(
-        'Error signing in',
-        e.toString(),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      Get.snackbar('Error signing in', e.toString(),
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white);
     }
   }
 
-  // --------------------------------------------------------
-  // INSERT USER IF NEW
-  // --------------------------------------------------------
   Future<void> insertUserIfNew(User user) async {
     final existing =
     await supabase.from('users').select().eq('id', user.id).maybeSingle();
@@ -242,15 +213,64 @@ class AuthController extends GetxController {
       await supabase.auth.signOut();
       Get.offAll(() => const LoginScreen());
     } catch (e) {
-      Get.snackbar(
-        'Logout Failed',
-        e.toString().replaceAll('Exception: ', ''),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      Get.snackbar('Logout Failed', e.toString(),
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white);
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  // --------------------------------------------------------
+  // RESTORE SESSION
+  // --------------------------------------------------------
+  Future<void> restoreSession() async {
+    final currentUser = supabase.auth.currentUser;
+    if (currentUser != null) {
+      await fetchUserAndNavigate(currentUser.id);
+    } else {
+      Get.offAll(() => const LoginScreen());
+    }
+  }
+
+  // --------------------------------------------------------
+  // UPDATE PROFILE
+  // --------------------------------------------------------
+  Future<void> updateUserProfile({
+    String? fullName,
+    String? email,
+    String? profileImage,
+  }) async {
+    try {
+      final uid = supabase.auth.currentUser?.id;
+      if (uid == null) throw "User not logged in";
+
+      final updates = <String, dynamic>{};
+      if (fullName != null) updates['full_name'] = fullName;
+      if (email != null) updates['email'] = email;
+      if (profileImage != null) updates['profile_image'] = profileImage;
+
+      await supabase.from('users').update(updates).eq('id', uid);
+
+      user.value = user.value?.copyWith(
+        name: fullName ?? user.value!.name,
+        email: email ?? user.value!.email,
+        avatarUrl: profileImage ?? user.value!.avatarUrl,
+      );
+
+      user.refresh();
+
+      Get.snackbar('Profile Updated',
+          'Your profile information has been updated successfully.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update profile: $e',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white);
     }
   }
 }
